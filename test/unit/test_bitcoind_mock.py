@@ -1,7 +1,9 @@
 import re
-from test.bitcoind_mock.transaction import TX
-from test.bitcoind_mock.conftest import get_random_value_hex, bitcoin_cli
-from test.bitcoind_mock.auth_proxy import JSONRPCException
+
+from test.conftest import get_random_value_hex, bitcoin_cli
+
+from bitcoind_mock.transaction import TX
+from bitcoind_mock.auth_proxy import JSONRPCException
 
 MIXED_VALUES = values = [-1, 500, "", "111", [], 1.1, None, "", "a" * 31, "b" * 33, get_random_value_hex(32)]
 

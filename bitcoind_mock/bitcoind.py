@@ -37,6 +37,7 @@ class BitcoindMock:
         best_tip(:obj:`str`): a reference to the chain best tip.
         genesis(:obj:`str`): a reference to the chain genesis block.
     """
+
     def __init__(self):
         self.blockchain = nx.DiGraph()
         self.blocks = dict()
@@ -100,6 +101,7 @@ class BitcoindMock:
         Returns:
             :obj:`Response`: An HTTP 200-OK response signaling the acceptance of the request.
         """
+        print("generate")
         self.mine_new_block.set()
 
         return Response(status=200, mimetype="application/json")
@@ -127,8 +129,9 @@ class BitcoindMock:
             response["error"] = {"code": -1, "message": "Wrong parent block to fork from"}
 
         else:
-            self.best_tip = parent
             print("Forking chain from {}".format(parent))
+            self.best_tip = parent
+            self.mine_new_block.set()
 
         return Response(json.dumps(response), status=200, mimetype="application/json")
 
@@ -255,6 +258,7 @@ class BitcoindMock:
 
                 if block is not None:
                     if self.in_best_chain(block_hash):
+                        print(self.blocks.get(self.best_tip).get("height"))
                         block["confirmations"] = self.blocks.get(self.best_tip).get("height") - block.get("height")
                     else:
                         block["confirmations"] = -1

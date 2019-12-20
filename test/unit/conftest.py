@@ -3,9 +3,9 @@ import random
 from time import sleep
 from threading import Thread
 
-import test.bitcoind_mock.conf as conf
-from test.bitcoind_mock.bitcoind_mock import BitcoindMock
-from test.bitcoind_mock.auth_proxy import AuthServiceProxy
+import bitcoind_mock.conf as conf
+from bitcoind_mock.bitcoind import BitcoindMock
+from bitcoind_mock.auth_proxy import AuthServiceProxy
 
 
 def get_random_value_hex(nbytes):
