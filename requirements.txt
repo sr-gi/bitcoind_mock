@@ -1,3 +1,5 @@
 zmq
 networkx
 flask
+requests
+pytest
