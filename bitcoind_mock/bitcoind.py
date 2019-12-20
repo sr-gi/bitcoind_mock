@@ -16,11 +16,27 @@ from bitcoind_mock.transaction import TX
 from bitcoind_mock.zmq_publisher import ZMQPublisher
 
 app = Flask(__name__)
-
 GENESIS_PARENT = "0000000000000000000000000000000000000000000000000000000000000000"
 
 
 class BitcoindMock:
+    """
+    Tiny mock of bitcoind. It creates a blockchain mock and a JSON-RCP interface. Let's you perform some of the bitcoind
+    RPC commands (listed in process_request).
+
+    Also let's you mine blocks by time or by demand, and create forks by demand.
+
+    Attributes:
+        blockchain(:obj:`DiGraph`): a directed graph representing the blockchain.
+        blocks(:obj:`dict`): a dictionary keeping track of all blocks. Contains:
+            ``{tx, height, previousblockhash, chainwork}``
+        mempool(:obj:`dict`): a dictionary keeping track of the transactions pending to be mined.
+        mempool(:obj:`dict`): a dictionary with all the mined transactions and a reference to the block where they were
+            mined.
+        mine_new_block(:obj:`Event`): an event flag to trigger a new block (if the mock is set to mine based on events).
+        best_tip(:obj:`str`): a reference to the chain best tip.
+        genesis(:obj:`str`): a reference to the chain genesis block.
+    """
     def __init__(self):
         self.blockchain = nx.DiGraph()
         self.blocks = dict()
@@ -47,6 +63,15 @@ class BitcoindMock:
 
     @staticmethod
     def get_rpc_param(request_data):
+        """
+        Gets the first parameter from a RPC call.
+
+        Args:
+            request_data(:obj:`list`): list of parameters from the rpc call.
+
+        Returns:
+              :obj:`str` or :obj:`None`: The first parameter of the call, or ``None`` if there are no parameters.
+        """
         params = request_data.get("params")
 
         if isinstance(params, list) and len(params) > 0:
@@ -56,6 +81,12 @@ class BitcoindMock:
 
     @staticmethod
     def get_new_block_data():
+        """
+        Creates the data to be used for a mined block.
+
+       Returns:
+            :obj:`tuple`: A three item tuple (block_hash, coinbase_tx, coinbase_tx_hash)
+        """
         block_hash = os.urandom(32).hex()
         coinbase_tx = TX.create_dummy_transaction()
         coinbase_tx_hash = sha256d(coinbase_tx)
@@ -63,17 +94,26 @@ class BitcoindMock:
         return block_hash, coinbase_tx, coinbase_tx_hash
 
     def generate(self):
+        """
+        Endpoint use to trigger the mining of a new block. It can be accessed at ``/`` using ``POST``.
+
+        Returns:
+            :obj:`Response`: An HTTP 200-OK response signaling the acceptance of the request.
+        """
         self.mine_new_block.set()
 
         return Response(status=200, mimetype="application/json")
 
     def create_fork(self):
         """
-        create_fork processes chain fork requests. It will create a fork with the following parameters:
-        parent: the block hash from where the chain will be forked
-        length: the length of the fork to be created (number of blocks to be mined on top of parent)
-        stay: whether to stay in the forked chain after length blocks has been mined or to come back to the previous chain.
-              Stay is optional and will default to False.
+        Endpoint used to trigger a chain fork. It can be accessed at ``/fork`` using ``POST``.
+
+        Requires a JSON encoded data with the key ``parent`` and the hash of an already mined block. The blockchain will
+        be forked from the ``parent``.
+
+        Returns:
+            :obj:`Response`: An HTTP 200-OK response signaling the acceptance of the request if the parent was a valid
+            block. An HTTP 200-OK with an error if the parent was invalid.
         """
 
         request_data = request.get_json()
@@ -94,18 +134,15 @@ class BitcoindMock:
 
     def process_request(self):
         """
-        process_requests simulates the bitcoin-rpc server run by bitcoind. The available commands are limited to the
-        ones we'll need to use in pisa. The model we will be using is pretty simplified to reduce the complexity of
-        simulating bitcoind:
-
-        Raw transactions:       raw transactions will actually be transaction ids (txids). Pisa will, therefore, receive
-                                encrypted blobs that encrypt ids instead of real transactions.
+        Simulates the bitcoin-rpc server run by bitcoind. The available commands are limited to the ones we'll need to
+        test out functionality. The model we will be using is pretty simplified to reduce the complexity of mocking
+        bitcoind:
 
         decoderawtransaction:   querying for the decoding of a raw transaction will return a dictionary with a single
-                                field: "txid", which will match with the txid provided in the request
+                                field: "txid".
 
         sendrawtransaction:     sending a rawtransaction will notify our mining simulator to include such transaction in
-                                a subsequent block.
+                                a subsequent block (add it to mempool).
 
         getrawtransaction:      requesting a rawtransaction from a txid will return a dictionary containing a single
                                 field: "confirmations", since rawtransactions are only queried to check whether a
@@ -116,15 +153,14 @@ class BitcoindMock:
 
         getblock:               querying for a block will return a dictionary with a three fields: "tx" representing a
                                 list of transactions, "height" representing the block height and "hash" representing the
-                                block hash. Both will be got from the mining simulator.
+                                block hash.
 
-        getblockhash:           a block hash is only queried by pisad on bootstrapping to check the network bitcoind is
-                                running on.
+        getblockhash:           returns the hash of a block given its height.
 
-        getbestblockhash:       returns the hash of the block in the tip of the chain
+        getbestblockhash:       returns the hash of the block in the tip of the chain.
 
-        help:                   help is only used as a sample command to test if bitcoind is running when bootstrapping
-                                pisad. It will return a 200/OK with no data.
+        help:                   help is only used as a sample command to test if bitcoind is running when bootstrapping.
+                                It will return a 200/OK with no data.
         """
 
         request_data = request.get_json()
@@ -259,7 +295,14 @@ class BitcoindMock:
 
     def in_best_chain(self, block_hash):
         """
-        A block is party of the best chain if there a path from it to the best tip (directed graph).
+        Returns whether a given block hash if part of the best chain or not. A block is party of the best chain if there
+        a path from it to the best tip (directed graph).
+
+        Args:
+            block_hash(:obj:`str`): the block hash to be checked.
+
+        Returns:
+            :obj:`bool`: Whether the block is part of the best chain or not.
         """
         try:
             nx.shortest_path(self.blockchain, block_hash, self.best_tip)
@@ -267,7 +310,21 @@ class BitcoindMock:
         except NetworkXNoPath:
             return False
 
-    def simulate_mining(self, mode, time_between_blocks, verbose=True):
+    def simulate_mining(self, mode, verbose=True):
+        """
+        Simulates bicoin mining. The simulator ca be run in two modes: by events, or by time.
+
+        If ``mode=='event'``, the simulator will be waiting for event on `/generate`. Otherwise, a block will be mined
+        every ``TIME_BETWEEN_BLOCKS`` seconds. Transactions received via ``sendrawtransactions`` wil be included in a
+        new generated block (up to ``TX_PER_BLOCK``).
+
+        Also, the simulator will notify about new blocks via ZMQ.
+
+        Args:
+            mode(:obj:`str`): the mode the simulator is running on. Can be either ``'time'`` or ``'event```.
+            verbose(:obj:`bool`): whether to print via stdout when a new block has been mined (including the txs).
+        """
+
         mining_simulator = ZMQPublisher(
             topic=b"hashblock", feed_protocol=conf.FEED_PROTOCOL, feed_addr=conf.FEED_ADDR, feed_port=conf.FEED_PORT
         )
@@ -307,12 +364,24 @@ class BitcoindMock:
                 print("\tTransactions: {}".format(list(txs_to_mine.keys())))
 
             if mode == "time":
-                time.sleep(time_between_blocks)
+                time.sleep(conf.TIME_BETWEEN_BLOCKS)
 
             else:
                 self.mine_new_block.clear()
 
-    def run(self, mode="time", time_between_blocks=conf.TIME_BETWEEN_BLOCKS, verbose=True):
+    def run(self, mode="time", verbose=True):
+        """
+        Runs the mock.
+
+        The mock will be accessible at BTC_RPC_HOST:BTC_RPC_PORT (check sample_conf.py). By default if uses the same
+        ports that bitcoind (both for RPC and ZMQ).
+
+        Args:
+            mode(:obj:`str`): the mode the simulator is running on. Can be either ``'time'`` or ``'event```.
+            verbose(:obj:`bool`): whether to print via stdout when a new block has been mined (including the txs).
+
+        """
+
         if mode not in ["time", "event"]:
             raise ValueError("Node must be time or event")
 
@@ -325,7 +394,7 @@ class BitcoindMock:
         for url, params in routes.items():
             app.add_url_rule(url, view_func=params[0], methods=params[1])
 
-        mining_thread = Thread(target=self.simulate_mining, args=[mode, time_between_blocks, verbose])
+        mining_thread = Thread(target=self.simulate_mining, args=[mode, verbose])
         mining_thread.start()
 
         # Setting Flask log to ERROR only so it does not mess with out logging. Also disabling flask initial messages
