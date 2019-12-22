@@ -19,6 +19,20 @@ app = Flask(__name__)
 GENESIS_PARENT = "0000000000000000000000000000000000000000000000000000000000000000"
 
 
+def set_event(event, wait_time):
+    """
+    Sets the mining event once every ``wait_time`` seconds so a new block is generated at fixed intervals.
+
+    Args:
+        event(:obj:`Event`): the event to be set.
+        wait_time(:obj:`int`): time between blocks.
+    """
+
+    while True:
+        time.sleep(wait_time)
+        event.set()
+
+
 class BitcoindMock:
     """
     Tiny mock of bitcoind. It creates a blockchain mock and a JSON-RCP interface. Let's you perform some of the bitcoind
@@ -36,6 +50,7 @@ class BitcoindMock:
         mine_new_block(:obj:`Event`): an event flag to trigger a new block (if the mock is set to mine based on events).
         best_tip(:obj:`str`): a reference to the chain best tip.
         genesis(:obj:`str`): a reference to the chain genesis block.
+        last_mined_block(:obj:`str`): a reference to the last mined block. The mock will mine on top of it.
     """
 
     def __init__(self):
@@ -57,6 +72,7 @@ class BitcoindMock:
         }
         self.blockchain.add_node(block_hash, short_id=block_hash[:8])
         self.best_tip = block_hash
+        self.last_mined_block = block_hash
         self.genesis = block_hash
 
         # Set the event so it can start mining right off the bat
@@ -101,7 +117,6 @@ class BitcoindMock:
         Returns:
             :obj:`Response`: An HTTP 200-OK response signaling the acceptance of the request.
         """
-        print("generate")
         self.mine_new_block.set()
 
         return Response(status=200, mimetype="application/json")
@@ -130,8 +145,8 @@ class BitcoindMock:
 
         else:
             print("Forking chain from {}".format(parent))
-            self.best_tip = parent
-            self.mine_new_block.set()
+            self.last_mined_block = parent
+            self.generate()
 
         return Response(json.dumps(response), status=200, mimetype="application/json")
 
@@ -258,7 +273,6 @@ class BitcoindMock:
 
                 if block is not None:
                     if self.in_best_chain(block_hash):
-                        print(self.blocks.get(self.best_tip).get("height"))
                         block["confirmations"] = self.blocks.get(self.best_tip).get("height") - block.get("height")
                     else:
                         block["confirmations"] = -1
@@ -314,7 +328,7 @@ class BitcoindMock:
         except NetworkXNoPath:
             return False
 
-    def simulate_mining(self, mode, verbose=True):
+    def simulate_mining(self, verbose=True):
         """
         Simulates bicoin mining. The simulator ca be run in two modes: by events, or by time.
 
@@ -325,7 +339,6 @@ class BitcoindMock:
         Also, the simulator will notify about new blocks via ZMQ.
 
         Args:
-            mode(:obj:`str`): the mode the simulator is running on. Can be either ``'time'`` or ``'event```.
             verbose(:obj:`bool`): whether to print via stdout when a new block has been mined (including the txs).
         """
 
@@ -350,9 +363,9 @@ class BitcoindMock:
             # FIXME: chain_work is being defined as a incremental counter for now. Multiple chains should be possible.
             self.blocks[block_hash] = {
                 "tx": list(txs_to_mine.keys()),
-                "height": self.blocks[self.best_tip].get("height") + 1,
-                "previousblockhash": self.best_tip,
-                "chainwork": "{:x}".format(self.blocks[self.best_tip].get("height") + 1),
+                "height": self.blocks[self.last_mined_block].get("height") + 1,
+                "previousblockhash": self.last_mined_block,
+                "chainwork": "{:x}".format(self.blocks[self.last_mined_block].get("height") + 1),
             }
 
             # Send data via ZMQ
@@ -360,20 +373,22 @@ class BitcoindMock:
 
             # Add the block to the chain and update the tip
             self.blockchain.add_node(block_hash, short_id=block_hash[:8])
-            self.blockchain.add_edge(self.best_tip, block_hash)
-            self.best_tip = block_hash
+            self.blockchain.add_edge(self.last_mined_block, block_hash)
+
+            # Update pointers
+            self.last_mined_block = block_hash
+
+            if self.blocks[block_hash].get("chainwork") > self.blocks[self.best_tip].get("chainwork"):
+                self.best_tip = block_hash
+
+            # Wait until new event
+            self.mine_new_block.clear()
 
             if verbose:
                 print("New block mined: {}".format(block_hash))
                 print("\tTransactions: {}".format(list(txs_to_mine.keys())))
 
-            if mode == "time":
-                time.sleep(conf.TIME_BETWEEN_BLOCKS)
-
-            else:
-                self.mine_new_block.clear()
-
-    def run(self, mode="time", verbose=True):
+    def run(self, host=conf.BTC_RPC_HOST, port=conf.BTC_RPC_PORT, mode="time", verbose=True):
         """
         Runs the mock.
 
@@ -381,6 +396,8 @@ class BitcoindMock:
         ports that bitcoind (both for RPC and ZMQ).
 
         Args:
+            host(:obj:`str`): the host where the http server will run. Defaults to BTC_RPC_HOST.
+            port(:obj:`int`): the port where the http server will run. Defaults to BTC_RPC_PORT.
             mode(:obj:`str`): the mode the simulator is running on. Can be either ``'time'`` or ``'event```.
             verbose(:obj:`bool`): whether to print via stdout when a new block has been mined (including the txs).
 
@@ -398,11 +415,14 @@ class BitcoindMock:
         for url, params in routes.items():
             app.add_url_rule(url, view_func=params[0], methods=params[1])
 
-        mining_thread = Thread(target=self.simulate_mining, args=[mode, verbose])
+        if mode == "time":
+            Thread(target=set_event, args=[self.mine_new_block, conf.TIME_BETWEEN_BLOCKS]).start()
+
+        mining_thread = Thread(target=self.simulate_mining, args=[verbose])
         mining_thread.start()
 
         # Setting Flask log to ERROR only so it does not mess with out logging. Also disabling flask initial messages
         logging.getLogger("werkzeug").setLevel(logging.ERROR)
         os.environ["WERKZEUG_RUN_MAIN"] = "true"
 
-        app.run(host=conf.BTC_RPC_HOST, port=conf.BTC_RPC_PORT)
+        app.run(host=host, port=port)
