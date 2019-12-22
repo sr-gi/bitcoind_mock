@@ -106,6 +106,15 @@ def test_getblock(genesis_block_hash):
         except JSONRPCException as e:
             assert True
 
+    best_block = bitcoin_cli().getblock(bitcoin_cli().getbestblockhash())
+    requests.post(url="http://{}:{}/generate".format(conf.BTC_RPC_HOST, conf.BTC_RPC_PORT), timeout=5)
+
+    # Check that the confirmation counting works
+    old_best = bitcoin_cli().getblock(best_block.get("hash"))
+    best_block = bitcoin_cli().getblock(bitcoin_cli().getbestblockhash())
+
+    assert best_block.get("confirmations") == old_best.get("confirmations") - 1
+
 
 def test_decoderawtransaction(genesis_block_hash):
     # decoderawtransaction should only return if the given transaction is properly formatted (can be deserialized using

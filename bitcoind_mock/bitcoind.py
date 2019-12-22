@@ -239,7 +239,7 @@ class BitcoindMock:
                         rawtx = self.transactions[txid].get("tx")
                         response["result"] = {
                             "hex": rawtx,
-                            "confirmations": self.blocks.get(self.best_tip).get("height") - block.get("height"),
+                            "confirmations": 1 + self.blocks.get(self.best_tip).get("height") - block.get("height"),
                         }
                     else:
                         response["error"] = {
@@ -273,7 +273,7 @@ class BitcoindMock:
 
                 if block is not None:
                     if self.in_best_chain(block_hash):
-                        block["confirmations"] = self.blocks.get(self.best_tip).get("height") - block.get("height")
+                        block["confirmations"] = 1 + self.blocks.get(self.best_tip).get("height") - block.get("height")
                     else:
                         block["confirmations"] = -1
 
