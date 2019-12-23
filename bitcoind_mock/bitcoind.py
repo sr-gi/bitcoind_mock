@@ -4,6 +4,7 @@ import json
 import logging
 import binascii
 import networkx as nx
+from copy import deepcopy
 from networkx import NetworkXNoPath
 from itertools import islice
 from threading import Thread, Event
@@ -68,7 +69,7 @@ class BitcoindMock:
             "tx": [coinbase_tx_hash],
             "height": 0,
             "previousblockhash": GENESIS_PARENT,
-            "chainwork": "{:x}".format(0),
+            "chainwork": 0,
         }
         self.blockchain.add_node(block_hash, short_id=block_hash[:8])
         self.best_tip = block_hash
@@ -269,7 +270,7 @@ class BitcoindMock:
             block_hash = self.get_rpc_param(request_data)
 
             if isinstance(block_hash, str):
-                block = self.blocks.get(block_hash)
+                block = deepcopy(self.blocks.get(block_hash))
 
                 if block is not None:
                     if self.in_best_chain(block_hash):
@@ -277,6 +278,8 @@ class BitcoindMock:
                     else:
                         block["confirmations"] = -1
 
+                    # chainwork is returned as a 32-byte hex by bitcoind
+                    block["chainwork"] = "{:064x}".format(block["chainwork"])
                     block["hash"] = block_hash
                     response["result"] = block
 
@@ -365,7 +368,7 @@ class BitcoindMock:
                 "tx": list(txs_to_mine.keys()),
                 "height": self.blocks[self.last_mined_block].get("height") + 1,
                 "previousblockhash": self.last_mined_block,
-                "chainwork": "{:x}".format(self.blocks[self.last_mined_block].get("height") + 1),
+                "chainwork": self.blocks[self.last_mined_block].get("height") + 1,
             }
 
             # Send data via ZMQ
