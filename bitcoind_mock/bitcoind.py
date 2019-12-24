@@ -167,10 +167,9 @@ class BitcoindMock:
                                 field: "confirmations", since rawtransactions are only queried to check whether a
                                 transaction has made it to a block or not.
 
-        getblockcount:          the block count will be get from the mining simulator by querying how many blocks have
-                                been emitted so far.
+        getblockcount:          the block count represents the length of the longest chain.
 
-        getblock:               querying for a block will return a dictionary with a three fields: "tx" representing a
+        getblock:               querying for a block will return a dictionary with three fields: "tx" representing a
                                 list of transactions, "height" representing the block height and "hash" representing the
                                 block hash.
 

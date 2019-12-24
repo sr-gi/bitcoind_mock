@@ -25,10 +25,9 @@ getrawtransaction:      requesting a rawtransaction from a txid will return a di
                         field: "confirmations", since rawtransactions are only queried to check whether a
                         transaction has made it to a block or not.
 
-getblockcount:          the block count will be get from the mining simulator by querying how many blocks have
-                        been emitted so far.
+getblockcount:          the block count represents the length of the longest chain.
 
-getblock:               querying for a block will return a dictionary with a three fields: "tx" representing a
+getblock:               querying for a block will return a dictionary with three fields: "tx" representing a
                         list of transactions, "height" representing the block height and "hash" representing the
                         block hash.
 
@@ -42,10 +41,10 @@ help:                   help is only used as a sample command to test if bitcoin
 
 ## Known limitations
 
-- The implemented commands do not return every single field that `bitcoind` would, only the most important one (or the 
+- The implemented commands do not return every single field that `bitcoind` would, only the most important ones (or the 
 ones that I've required so for my own unit tests).
 
-- The mock works well when interacting with via `python` but not if queried directly by `bitcoin-cli` (check [#1](https://github.com/sr-gi/bitcoind_mock/issues/1))
+- The mock works well when interacting with via `python` but not if queried directly by `bitcoin-cli` (check [#1](https://github.com/sr-gi/bitcoind_mock/issues/1)).
 
 - `zmq` only notifies about blocks being mined, but not about transactions.
 
