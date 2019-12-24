@@ -53,11 +53,15 @@ the forked one.
 
 ### Dependencies
 
-Refer to [DEPENCENCIES.md](DEPENDENCIES.md)
+Refer to [DEPENCENCIES.md](DEPENDENCIES.md).
 
 ### Installation
 
-Refer to [INSTALL.md](INSTALL.md)
+You can get the package from PyPi:
+
+`pip install bitcoind-mock`
+
+Or install it manually (refer to [INSTALL.md](INSTALL.md)).
 
 ### Contributing
 
