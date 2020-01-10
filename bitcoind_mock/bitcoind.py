@@ -10,14 +10,15 @@ from itertools import islice
 from threading import Thread, Event
 from flask import Flask, request, Response, abort
 
+from riemann import tx
+
 from bitcoind_mock.rpc_errors import *
 import bitcoind_mock.conf as conf
-from bitcoind_mock.utils import sha256d
-from bitcoind_mock.transaction import TX
+from bitcoind_mock import transaction
 from bitcoind_mock.zmq_publisher import ZMQPublisher
 
 app = Flask(__name__)
-GENESIS_PARENT = "0000000000000000000000000000000000000000000000000000000000000000"
+GENESIS_PARENT = "00" * 32
 
 
 def set_event(event, wait_time):
@@ -106,10 +107,9 @@ class BitcoindMock:
             :obj:`tuple`: A three item tuple (block_hash, coinbase_tx, coinbase_tx_hash)
         """
         block_hash = os.urandom(32).hex()
-        coinbase_tx = TX.create_dummy_transaction()
-        coinbase_tx_hash = sha256d(coinbase_tx)
+        coinbase_tx = transaction.create_dummy_transaction()
 
-        return block_hash, coinbase_tx, coinbase_tx_hash
+        return block_hash, coinbase_tx.hex(), coinbase_tx.tx_id.hex()
 
     def generate(self):
         """
@@ -180,7 +180,6 @@ class BitcoindMock:
         help:                   help is only used as a sample command to test if bitcoind is running when bootstrapping.
                                 It will return a 200/OK with no data.
         """
-
         request_data = request.get_json()
         method = request_data.get("method")
 
@@ -191,12 +190,11 @@ class BitcoindMock:
             rawtx = self.get_rpc_param(request_data)
 
             if isinstance(rawtx, str) and len(rawtx) % 2 is 0:
-                txid = sha256d(rawtx)
+                try:
+                    t = tx.Tx.from_hex(rawtx)
+                    response["result"] = {"txid": t.tx_id.hex()}
 
-                if TX.deserialize(rawtx) is not None:
-                    response["result"] = {"txid": txid}
-
-                else:
+                except (ValueError, IndexError):
                     response["error"] = {"code": RPC_DESERIALIZATION_ERROR, "message": "TX decode failed"}
 
             else:
@@ -208,9 +206,10 @@ class BitcoindMock:
             rawtx = self.get_rpc_param(request_data)
 
             if isinstance(rawtx, str) and len(rawtx) % 2 is 0:
-                txid = sha256d(rawtx)
 
-                if TX.deserialize(rawtx) is not None:
+                try:
+                    t = tx.Tx.from_hex(rawtx)
+                    txid = t.tx_id.hex()
                     if txid not in self.transactions:
                         self.mempool[txid] = rawtx
                         response["result"] = {"txid": txid}
@@ -221,7 +220,7 @@ class BitcoindMock:
                             "message": "Transaction already in block chain",
                         }
 
-                else:
+                except (ValueError, IndexError):
                     response["error"] = {"code": RPC_DESERIALIZATION_ERROR, "message": "TX decode failed"}
 
             else:

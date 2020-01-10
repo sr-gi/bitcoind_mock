@@ -2,14 +2,16 @@ import re
 import requests
 from threading import Thread
 
-from test.unit.conftest import get_random_value_hex, bitcoin_cli
+from riemann import tx
+
+from test.unit.conftest import bitcoin_cli
 
 import bitcoind_mock.conf as conf
-from bitcoind_mock.transaction import TX
+from bitcoind_mock import transaction, utils
 from bitcoind_mock.bitcoind import BitcoindMock, set_event
 from bitcoind_mock.auth_proxy import JSONRPCException
 
-MIXED_VALUES = values = [-1, 500, "", "111", [], 1.1, None, "", "a" * 31, "b" * 33, get_random_value_hex(32)]
+MIXED_VALUES = values = [-1, 500, "", "111", [], 1.1, None, "", "a" * 31, "b" * 33, utils.get_random_value_hex(32)]
 
 
 def check_hash_format(txid):
@@ -31,7 +33,8 @@ def test_get_new_block_data(run_bitcoind):
     block_hash, coinbase_tx, coinbase_tx_hash = BitcoindMock.get_new_block_data()
 
     assert check_hash_format(block_hash) and check_hash_format(coinbase_tx_hash)
-    assert isinstance(coinbase_tx, str) and isinstance(TX.deserialize(coinbase_tx), TX)
+    assert isinstance(coinbase_tx, str)
+    tx.Tx.from_hex(coinbase_tx)  # throws error if doesn't deserialize succesfully
 
 
 def test_generate():
@@ -130,8 +133,8 @@ def test_decoderawtransaction(genesis_block_hash):
     assert check_hash_format(tx.get("txid"))
 
     # Therefore it should also work for a random transaction hex in our simulation
-    random_tx = TX.create_dummy_transaction()
-    tx = bitcoin_cli().decoderawtransaction(random_tx)
+    random_tx = transaction.create_dummy_transaction()
+    tx = bitcoin_cli().decoderawtransaction(random_tx.hex())
     assert isinstance(tx, dict)
     assert isinstance(tx.get("txid"), str)
     assert check_hash_format(tx.get("txid"))
@@ -147,7 +150,7 @@ def test_decoderawtransaction(genesis_block_hash):
 
 def test_sendrawtransaction(genesis_block_hash):
     # sendrawtransaction should only allow txs that the simulator has not mined yet
-    bitcoin_cli().sendrawtransaction(TX.create_dummy_transaction())
+    bitcoin_cli().sendrawtransaction(transaction.create_dummy_transaction().hex())
 
     # Any tx with invalid format or that matches with an already mined transaction should fail
     try:
@@ -169,8 +172,8 @@ def test_sendrawtransaction(genesis_block_hash):
 
     # Trying with a valid tx
     try:
-        tx = TX.create_dummy_transaction()
-        bitcoin_cli().sendrawtransaction(tx)
+        tx = transaction.create_dummy_transaction()
+        bitcoin_cli().sendrawtransaction(tx.hex())
         assert True
 
     except JSONRPCException as e:
