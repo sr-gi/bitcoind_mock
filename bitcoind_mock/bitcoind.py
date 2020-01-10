@@ -13,7 +13,7 @@ from flask import Flask, request, Response, abort
 from riemann import tx
 
 from bitcoind_mock.rpc_errors import *
-import bitcoind_mock.conf as conf
+from bitcoind_mock import conf, utils
 from bitcoind_mock import transaction
 from bitcoind_mock.zmq_publisher import ZMQPublisher
 
@@ -106,7 +106,7 @@ class BitcoindMock:
        Returns:
             :obj:`tuple`: A three item tuple (block_hash, coinbase_tx, coinbase_tx_hash)
         """
-        block_hash = os.urandom(32).hex()
+        block_hash = utils.get_random_value_hex(32)
         coinbase_tx = transaction.create_dummy_transaction()
 
         return block_hash, coinbase_tx.hex(), coinbase_tx.tx_id.hex()
