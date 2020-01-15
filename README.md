@@ -67,3 +67,5 @@ Or install it manually (refer to [INSTALL.md](INSTALL.md)).
 
 If you'd like to add / extend any command, feel free to send a PR. We can make this as complete as we'd like by joining 
 efforts :smile:
+
+Refer to [CONTRIBUTING.md](CONTRIBUTING.md) for the style guidelines to follow.
