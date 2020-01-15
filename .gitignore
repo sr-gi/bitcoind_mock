@@ -1,1 +1,9 @@
 bitcoind_mock/conf.py
+.idea
+.venv
+__pycache__
+build/
+dist/
+setup.py
+bitcoind_mock.egg-info/
+.DS_Store
