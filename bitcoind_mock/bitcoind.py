@@ -72,6 +72,7 @@ class BitcoindMock:
             "previousblockhash": GENESIS_PARENT,
             "chainwork": 0,
         }
+
         self.blockchain.add_node(block_hash, short_id=block_hash[:8])
         self.best_tip = block_hash
         self.last_mined_block = block_hash
@@ -240,6 +241,7 @@ class BitcoindMock:
                             "hex": rawtx,
                             "confirmations": 1 + self.blocks.get(self.best_tip).get("height") - block.get("height"),
                         }
+
                     else:
                         response["error"] = {
                             "code": RPC_INVALID_ADDRESS_OR_KEY,
@@ -297,6 +299,7 @@ class BitcoindMock:
 
                 else:
                     response["error"] = {"code": RPC_INVALID_PARAMETER, "message": "Block height out of range"}
+
             else:
                 response["error"] = no_param_err
                 response["error"]["message"] = response["error"]["message"].format("integer")
@@ -413,6 +416,7 @@ class BitcoindMock:
             "/generate": (self.generate, ["POST"]),
             "/fork": (self.create_fork, ["POST"]),
         }
+
         for url, params in routes.items():
             app.add_url_rule(url, view_func=params[0], methods=params[1])
 
