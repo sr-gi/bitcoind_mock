@@ -4,6 +4,19 @@ from riemann import utils as rutils
 from bitcoind_mock import utils
 
 
+def create_tx_from_hex(hex_tx):
+    """
+    Creates a transaction object (:obj:`Tx <riemann.tx.tx.Tx>`) from a hex serialized transaction.
+
+    Args:
+        hex_tx (:obj:`str`): a hex serialized transaction used to build the object.
+
+    Returns:
+        :obj:`Tx <riemann.tx.tx.Tx>`:  a ``Tx`` object built from the given data.
+    """
+    return tx.Tx.from_hex(hex_tx)
+
+
 def create_dummy_transaction(prev_tx_id=None, prev_out_index=None):
     """
     Creates a 1-1 transaction that is structurally correct, but spends from probably not valid outputs.
@@ -19,7 +32,7 @@ def create_dummy_transaction(prev_tx_id=None, prev_out_index=None):
             ``0`` is set.
 
     Returns:
-        :obj:`Tx` <riemann.tx.tx.Tx>: a ``Tx`` object representing the new generated transaction.
+        :obj:`Tx <riemann.tx.tx.Tx>`: a ``Tx`` object representing the new generated transaction.
     """
 
     if prev_tx_id is None or len(prev_tx_id) != 64:
