@@ -3,3 +3,4 @@ networkx
 flask
 requests
 pytest
+riemann-tx==2.1.0
