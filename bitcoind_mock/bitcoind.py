@@ -168,7 +168,8 @@ class BitcoindMock:
                                 field: "confirmations", since rawtransactions are only queried to check whether a
                                 transaction has made it to a block or not.
 
-        getblockcount:          the block count represents the length of the longest chain.
+        getblockcount:          the block count represents the height of the most-work fully-validated chain.
+                                The genesis block has height 0.
 
         getblock:               querying for a block will return a dictionary with three fields: "tx" representing a
                                 list of transactions, "height" representing the block height and "hash" representing the
@@ -264,7 +265,7 @@ class BitcoindMock:
                 response["error"]["message"] = response["error"]["message"].format("string")
 
         elif method == "getblockcount":
-            response["result"] = self.blocks[self.best_tip].get("height") + 1
+            response["result"] = self.blocks[self.best_tip].get("height")
 
         elif method == "getblock":
             block_hash = self.get_rpc_param(request_data)
